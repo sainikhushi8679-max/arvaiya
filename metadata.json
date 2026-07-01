@@ -1,0 +1,6 @@
+{
+  "name": "Arvaiya",
+  "description": "Premium organic fragrance discovery and AI-powered recommendations by Arvaiya's Fragrance Expert.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

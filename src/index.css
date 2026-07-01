@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Overwrite amber colors with premium royal/navy blue and sandy beige */
+  --color-amber-50: #F8F5EE;    /* Soft Ivory Background */
+  --color-amber-100: #EFE6D3;   /* Warm Beige Secondary Background */
+  --color-amber-200: #D8CDBA;   /* Border Beige */
+  --color-amber-300: #d8b97d;   /* Lighter Champagne Gold */
+  --color-amber-400: #d5b26e;   /* Medium Champagne Gold */
+  --color-amber-500: #C9A35A;   /* Champagne Gold - core Accent */
+  --color-amber-600: #b8914d;   /* Darker Champagne Gold - hover */
+  --color-amber-700: #1F2F5C;   /* Royal Navy Blue - core Primary */
+  --color-amber-800: #142042;   /* Midnight Navy Blue */
+  --color-amber-900: #0d152a;   /* Darkest Navy */
+
+  /* Dedicated brand semantic color mappings */
+  --color-brand-navy: #1F2F5C;
+  --color-brand-gold: #C9A35A;
+  --color-brand-ivory: #F8F5EE;
+  --color-brand-beige: #EFE6D3;
+  --color-brand-charcoal: #222222;
+  --color-brand-border: #D8CDBA;
+}
+
+@layer base {
+  body {
+    font-family: 'Montserrat', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  h1, h2, h3, h4, .font-serif-luxury {
+    font-family: 'Cormorant Garamond', serif;
+  }
+}
+
+/* Luxury custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 26, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 26, 0.45);
+}
+
+/* Subtle animation helpers */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-bg {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 37%, rgba(255,255,255,0.05) 50%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
