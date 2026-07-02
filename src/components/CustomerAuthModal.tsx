@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Lock, Unlock, Mail, User, Eye, EyeOff, ShoppingBag, Award, Shield, UserCheck, Key, History } from 'lucide-react';
+import { X, Lock, Unlock, Mail, User, Eye, EyeOff, ShoppingBag, Award, Shield, UserCheck, Key, History, Sparkles, Gift, Crown, Coins } from 'lucide-react';
 import { Order } from '../types';
+import FragranceJourneyChart from './FragranceJourneyChart';
 
 interface CustomerAuthModalProps {
   isOpen: boolean;
@@ -147,6 +148,23 @@ export default function CustomerAuthModal({
     ? orders.filter(o => o.customerEmail.toLowerCase() === currentCustomer.email.toLowerCase())
     : [];
 
+  // Arvaiya Rewards calculation: 100 welcome bonus + 1 Scent Point per ₹50 spent
+  const welcomeBonusPoints = 100;
+  const totalSpent = customerOrders.reduce((acc, o) => acc + o.total, 0);
+  const purchasePoints = Math.floor(totalSpent / 50);
+  const totalScentPoints = currentCustomer ? welcomeBonusPoints + purchasePoints : 0;
+
+  // Rewards Tier designation
+  let tierName = 'Organic Artisan';
+  let tierBadgeBg = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+  if (totalScentPoints >= 500) {
+    tierName = 'Master Nose VIP';
+    tierBadgeBg = 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+  } else if (totalScentPoints >= 250) {
+    tierName = 'Aroma Connoisseur';
+    tierBadgeBg = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -188,13 +206,22 @@ export default function CustomerAuthModal({
                   </p>
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-full hover:bg-neutral-100/10 dark:hover:bg-neutral-900/40 transition-colors"
-                id="close-customer-auth-modal"
-              >
-                <X className="w-4 h-4 text-neutral-400 hover:text-[#C9A35A]" />
-              </button>
+
+              <div className="flex items-center gap-2.5">
+                {authMode === 'account' && currentCustomer && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/20 via-amber-400/20 to-amber-500/20 border border-amber-500/40 text-amber-400 font-mono text-xs font-extrabold shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 fill-amber-400 text-amber-400 animate-pulse" />
+                    <span>{totalScentPoints} Scent Points</span>
+                  </div>
+                )}
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-full hover:bg-neutral-100/10 dark:hover:bg-neutral-900/40 transition-colors"
+                  id="close-customer-auth-modal"
+                >
+                  <X className="w-4 h-4 text-neutral-400 hover:text-[#C9A35A]" />
+                </button>
+              </div>
             </div>
 
             {/* Content Switcher */}
@@ -469,7 +496,12 @@ export default function CustomerAuthModal({
                         <User className="w-6 h-6" />
                       </div>
                       <div>
-                        <h4 className="font-serif italic text-base font-bold">{currentCustomer.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-serif italic text-base font-bold">{currentCustomer.name}</h4>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${tierBadgeBg}`}>
+                            {tierName}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-[#C9A35A] font-mono tracking-wide">{currentCustomer.email}</p>
                       </div>
                     </div>
@@ -480,6 +512,58 @@ export default function CustomerAuthModal({
                       Sign Out
                     </button>
                   </div>
+
+                  {/* Arvaiya Rewards Balance Card */}
+                  <div className={`p-5 rounded-2xl border relative overflow-hidden bg-gradient-to-br ${
+                    theme === 'dark'
+                      ? 'from-amber-950/30 via-[#1F2F5C]/50 to-[#142042] border-amber-500/30'
+                      : 'from-amber-100/60 via-[#F8F5EE] to-amber-50 border-amber-300'
+                  }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-5 h-5 text-amber-400" />
+                        <div>
+                          <h4 className="font-serif italic text-sm font-bold text-amber-400">
+                            Arvaiya Rewards Balance
+                          </h4>
+                          <p className="text-[9px] text-neutral-400 uppercase tracking-widest font-bold">
+                            Earn 1 Scent Point per ₹50 spent
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold">
+                        <Crown className="w-3.5 h-3.5" />
+                        <span>{tierName}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-baseline gap-2 my-2">
+                      <span className="font-mono text-3xl font-extrabold text-amber-400 tracking-tight">
+                        {totalScentPoints}
+                      </span>
+                      <span className="text-xs font-serif italic text-neutral-300 font-semibold">
+                        Scent Points
+                      </span>
+                      <span className="text-[10px] text-emerald-400 font-bold ml-auto bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        Worth ₹{totalScentPoints} Off Next Purchase
+                      </span>
+                    </div>
+
+                    {/* Points breakdown summary */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 mt-2 border-t border-amber-500/15 text-[10px]">
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/10">
+                        <span className="text-neutral-400">Welcome Bonus</span>
+                        <span className="font-mono font-bold text-amber-400">+{welcomeBonusPoints} pts</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/10">
+                        <span className="text-neutral-400">Purchases ({customerOrders.length})</span>
+                        <span className="font-mono font-bold text-amber-400">+{purchasePoints} pts</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual Fragrance Journey Graph */}
+                  <FragranceJourneyChart orders={customerOrders} theme={theme} />
 
                   {/* Orders section */}
                   <div className="space-y-3">
@@ -500,42 +584,48 @@ export default function CustomerAuthModal({
                       </div>
                     ) : (
                       <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
-                        {customerOrders.map((order) => (
-                          <div
-                            key={order.id}
-                            className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-                              theme === 'dark' ? 'bg-[#1F2F5C]/20 border-[#D8CDBA]/10' : 'bg-white border-[#D8CDBA]/50'
-                            }`}
-                          >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono font-bold text-[#C9A35A]">
-                                  {order.id}
+                        {customerOrders.map((order) => {
+                          const ptsEarned = Math.floor(order.total / 50);
+                          return (
+                            <div
+                              key={order.id}
+                              className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                                theme === 'dark' ? 'bg-[#1F2F5C]/20 border-[#D8CDBA]/10' : 'bg-white border-[#D8CDBA]/50'
+                              }`}
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-mono font-bold text-[#C9A35A]">
+                                    {order.id}
+                                  </span>
+                                  <span className="text-[9px] text-neutral-400">
+                                    {new Date(order.date).toLocaleDateString()}
+                                  </span>
+                                  <span className="text-[9px] font-extrabold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded font-mono">
+                                    +{ptsEarned} Scent Points
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                  {order.items.map(item => `${item.name} (${item.quantity}x)`).join(', ')}
+                                </p>
+                              </div>
+                              <div className="flex items-center justify-between md:justify-end gap-4 border-t md:border-t-0 pt-2 md:pt-0">
+                                <span className="text-xs font-bold text-[#C9A35A]">
+                                  ₹{order.total.toLocaleString()}
                                 </span>
-                                <span className="text-[9px] text-neutral-400">
-                                  {new Date(order.date).toLocaleDateString()}
+                                <span className={`px-2.5 py-0.5 rounded text-[8px] tracking-wider uppercase font-bold ${
+                                  order.status === 'Delivered'
+                                    ? 'bg-emerald-500/10 text-emerald-500'
+                                    : order.status === 'Shipped'
+                                      ? 'bg-blue-500/10 text-blue-500'
+                                      : 'bg-amber-500/10 text-amber-500'
+                                }`}>
+                                  {order.status}
                                 </span>
                               </div>
-                              <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                                {order.items.map(item => `${item.name} (${item.quantity}x)`).join(', ')}
-                              </p>
                             </div>
-                            <div className="flex items-center justify-between md:justify-end gap-4 border-t md:border-t-0 pt-2 md:pt-0">
-                              <span className="text-xs font-bold text-[#C9A35A]">
-                                ₹{order.total.toLocaleString()}
-                              </span>
-                              <span className={`px-2.5 py-0.5 rounded text-[8px] tracking-wider uppercase font-bold ${
-                                order.status === 'Delivered'
-                                  ? 'bg-emerald-500/10 text-emerald-500'
-                                  : order.status === 'Shipped'
-                                    ? 'bg-blue-500/10 text-blue-500'
-                                    : 'bg-amber-500/10 text-amber-500'
-                              }`}>
-                                {order.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

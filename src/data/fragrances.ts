@@ -27,8 +27,13 @@ export const fragrances: Fragrance[] = [
     description: 'A romantic and timeless bouquet of fresh Turkish roses combined with sweet lychee and warm vanilla.',
     vibe: 'Sophisticated, romantic, and velvety.',
     price: 3499,
+    originalPrice: 4299,
     volume: '100 ml',
-    imageUrl: journeyRoseImg
+    imageUrl: journeyRoseImg,
+    reviews: [
+      { id: 'rev-1', author: 'Aaradhya S.', rating: 5, comment: 'An exquisite rose perfume! Smells so luxurious and lasts all day.', date: '2026-06-12' },
+      { id: 'rev-2', author: 'Kavya Sharma', rating: 5, comment: 'The lychee and vanilla notes balance the Turkish rose wonderfully. Highly recommend!', date: '2026-06-20' },
+    ]
   },
   {
     id: 'journey-lavender',
@@ -59,6 +64,7 @@ export const fragrances: Fragrance[] = [
     description: 'A luxurious, mysterious sensory experience featuring dark purple orchid and warm patchouli.',
     vibe: 'Bold, mysterious, and captivating.',
     price: 4599,
+    originalPrice: 5499,
     volume: '100 ml',
     imageUrl: midnightOrchidImg
   },
@@ -75,6 +81,7 @@ export const fragrances: Fragrance[] = [
     description: 'A glowing, majestic scent reflecting golden hour resin warmth, rich sandalwood, and tonka bean.',
     vibe: 'Rich, luxurious, and warm.',
     price: 3999,
+    originalPrice: 4800,
     volume: '100 ml',
     imageUrl: sunlitAmberImg
   },

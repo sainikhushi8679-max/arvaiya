@@ -21,11 +21,14 @@ import {
   ShoppingBag,
   UserCheck,
   Truck,
-  User
+  User,
+  Zap,
+  FlaskConical,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fragrances } from './data/fragrances';
-import { Fragrance, UserProfile, ChatMessage, FragranceFamily, OccasionType, CartItem, Order } from './types';
+import { Fragrance, UserProfile, ChatMessage, FragranceFamily, OccasionType, CartItem, Order, Review } from './types';
 import DigitalBottle from './components/DigitalBottle';
 import ShopCatalog from './components/ShopCatalog';
 import CartDrawer from './components/CartDrawer';
@@ -34,15 +37,36 @@ import AdminPanel from './components/AdminPanel';
 import OrderTrackerModal from './components/OrderTrackerModal';
 import OrganicFAQ from './components/OrganicFAQ';
 import CustomerAuthModal from './components/CustomerAuthModal';
+import CustomPerfumeStudio from './components/CustomPerfumeStudio';
+import WishlistModal from './components/WishlistModal';
 
 export default function App() {
   // --- STATE ---
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [currentCustomer, setCurrentCustomer] = useState<{ name: string; email: string } | null>(null);
   const [isCustomerOpen, setIsCustomerOpen] = useState(false);
-  const [activeFragrances, setActiveFragrances] = useState<Fragrance[]>(fragrances);
-  const [selectedFragrance, setSelectedFragrance] = useState<Fragrance>(fragrances[0]);
+  const [activeFragrances, setActiveFragrances] = useState<Fragrance[]>(() => {
+    try {
+      const saved = localStorage.getItem('arvaiya_fragrances');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to parse saved fragrances', e);
+    }
+    return fragrances;
+  });
+  const [selectedFragrance, setSelectedFragrance] = useState<Fragrance>(activeFragrances[0] || fragrances[0]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('arvaiya_fragrances', JSON.stringify(activeFragrances));
+    } catch (e) {
+      console.error('Failed to save fragrances to localStorage', e);
+    }
+  }, [activeFragrances]);
 
   const handleSelectFragrance = (fragrance: Fragrance) => {
     setSelectedFragrance(fragrance);
@@ -56,11 +80,13 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
   const [vanityViewMode, setVanityViewMode] = useState<'photo' | 'digital'>('photo');
   const [digitalView, setDigitalView] = useState<'front' | 'side' | 'perspective'>('front');
+  const [activeNoteHighlight, setActiveNoteHighlight] = useState<string | null>(null);
 
   const getFragranceById = (id: string): Fragrance | undefined => {
     return activeFragrances.find(f => f.id === id);
@@ -100,18 +126,59 @@ export default function App() {
     setIsCheckoutOpen(true);
   };
 
+  const handleAddReview = (
+    fragranceId: string,
+    author: string,
+    rating: number,
+    comment: string
+  ) => {
+    const newReview: Review = {
+      id: `rev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      author: author.trim() || (currentCustomer ? currentCustomer.name : 'Fragrance Enthusiast'),
+      rating,
+      comment: comment.trim(),
+      date: new Date().toISOString().split('T')[0],
+    };
+
+    setActiveFragrances((prev) =>
+      prev.map((f) => {
+        if (f.id === fragranceId) {
+          const updatedReviews = [newReview, ...(f.reviews || [])];
+          const updatedFragrance = { ...f, reviews: updatedReviews };
+          if (selectedFragrance.id === fragranceId) {
+            setSelectedFragrance(updatedFragrance);
+          }
+          return updatedFragrance;
+        }
+        return f;
+      })
+    );
+  };
+
   const handleOrderPlaced = (
     customerName: string,
     customerEmail: string,
     address: string,
     city: string,
     upiId?: string,
-    paymentStatus?: 'Pending' | 'Paid' | 'Failed'
+    paymentStatus?: 'Pending' | 'Paid' | 'Failed' | 'Processing' | 'Cancelled',
+    paymentDetails?: {
+      phone?: string;
+      razorpayPaymentId?: string;
+      razorpayOrderId?: string;
+      razorpaySignature?: string;
+      invoiceNumber?: string;
+    }
   ) => {
+    const generatedId = paymentDetails?.razorpayOrderId
+      ? `ARV-${paymentDetails.razorpayOrderId.slice(-6).toUpperCase()}`
+      : 'ARV-' + Math.floor(100000 + Math.random() * 900000);
+
     const newOrder: Order = {
-      id: 'ARV-' + Math.floor(100000 + Math.random() * 900000),
+      id: generatedId,
       customerName,
       customerEmail,
+      phone: paymentDetails?.phone || '',
       address,
       city,
       items: cartItems.map((item) => ({
@@ -131,11 +198,34 @@ export default function App() {
       }),
       status: 'Pending',
       upiId,
-      paymentStatus: paymentStatus || 'Pending',
+      paymentStatus: paymentStatus || 'Paid',
+      razorpayPaymentId: paymentDetails?.razorpayPaymentId,
+      razorpayOrderId: paymentDetails?.razorpayOrderId,
+      razorpaySignature: paymentDetails?.razorpaySignature,
+      invoiceNumber: paymentDetails?.invoiceNumber || `INV-${Date.now()}`
     };
 
+    // Store order in state
     setOrders((prev) => [newOrder, ...prev]);
-    setCartItems([]); // Clear shopping bag
+
+    // Reduce product stock in active fragrances catalog
+    if (paymentStatus === 'Paid') {
+      setActiveFragrances((prev) =>
+        prev.map((f) => {
+          const purchasedInCart = cartItems.find((ci) => ci.fragrance.id === f.id);
+          if (purchasedInCart) {
+            // If fragrance has a stock count, reduce it
+            return {
+              ...f,
+              stock: Math.max(0, ((f as any).stock ?? 50) - purchasedInCart.quantity)
+            };
+          }
+          return f;
+        })
+      );
+    }
+
+    setCartItems([]); // Clear shopping bag on verified success
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: 'Pending' | 'Shipped' | 'Delivered') => {
@@ -198,6 +288,7 @@ export default function App() {
   ]);
   const [chatInput, setChatInput] = useState<string>('');
   const [isChatting, setIsChatting] = useState<boolean>(false);
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -226,7 +317,23 @@ export default function App() {
         console.error("Error reading saved customer", e);
       }
     }
+    const savedWishlist = localStorage.getItem('arvaiya-wishlist');
+    if (savedWishlist) {
+      try {
+        setWishlistIds(JSON.parse(savedWishlist));
+      } catch (e) {
+        console.error("Error reading saved wishlist", e);
+      }
+    }
   }, []);
+
+  const handleToggleWishlist = (id: string) => {
+    setWishlistIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      localStorage.setItem('arvaiya-wishlist', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Sync scroll on chat update
   useEffect(() => {
@@ -459,6 +566,39 @@ export default function App() {
             </button>
           )}
 
+          {/* Customer Lounge / Sign In launcher */}
+          {(() => {
+            const customerOrders = currentCustomer
+              ? orders.filter(o => o.customerEmail.toLowerCase() === currentCustomer.email.toLowerCase())
+              : [];
+            const scentPts = currentCustomer ? 100 + Math.floor(customerOrders.reduce((acc, o) => acc + o.total, 0) / 50) : 0;
+            return (
+              <button 
+                onClick={() => setIsCustomerOpen(true)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-xs tracking-wider uppercase font-medium transition-all ${
+                  currentCustomer
+                    ? theme === 'dark'
+                      ? 'border-[#C9A35A]/50 bg-[#C9A35A]/10 text-[#C9A35A]'
+                      : 'border-[#C9A35A] bg-[#EFE6D3]/60 text-[#222222]'
+                    : theme === 'dark' 
+                      ? 'border-[#C9A35A]/30 hover:bg-[#142042] text-[#C9A35A]' 
+                      : 'border-[#D8CDBA] hover:bg-[#1F2F5C] hover:text-white text-[#C9A35A]'
+                }`}
+                title={currentCustomer ? `Logged in as ${currentCustomer.name} (${scentPts} Scent Points)` : "Customer Sign In & Lounge"}
+                id="customer-auth-header-btn"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>{currentCustomer ? currentCustomer.name : 'Sign In'}</span>
+                {currentCustomer && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500 text-black text-[9px] font-extrabold font-mono shadow-sm ml-0.5">
+                    <Sparkles className="w-2.5 h-2.5 fill-black" />
+                    {scentPts} pts
+                  </span>
+                )}
+              </button>
+            );
+          })()}
+
           {/* Admin Dashboard launcher */}
           <button 
             onClick={() => setIsAdminOpen(true)}
@@ -473,6 +613,19 @@ export default function App() {
             Admin
           </button>
 
+          {/* Custom Perfume Studio launcher */}
+          <button 
+            onClick={() => {
+              const studio = document.getElementById('custom-perfume-studio');
+              if (studio) studio.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-amber-500/50 bg-amber-500/10 text-amber-400 font-bold text-xs uppercase tracking-wider hover:bg-amber-500/20 transition-all shadow-sm"
+            title="Create Your Own Custom Perfume"
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            <span>Blend Perfume</span>
+          </button>
+
           {/* Order Shipment Tracker launcher */}
           <button 
             onClick={() => setIsTrackerOpen(true)}
@@ -485,6 +638,25 @@ export default function App() {
           >
             <Truck className="w-3.5 h-3.5" />
             Track Order
+          </button>
+
+          {/* Wishlist badge launcher button */}
+          <button 
+            onClick={() => setIsWishlistOpen(true)}
+            className={`relative p-2.5 rounded-full border transition-all duration-500 flex items-center justify-center ${
+              theme === 'dark' 
+                ? 'border-rose-500/30 bg-[#142042] text-rose-400 hover:bg-[#1F2F5C]' 
+                : 'border-rose-300 bg-[#FFFFFF] text-rose-500 hover:bg-rose-50'
+            }`}
+            title={`View Wishlist (${wishlistIds.length} saved)`}
+            id="header-wishlist-btn"
+          >
+            <Heart className={`w-4 h-4 ${wishlistIds.length > 0 ? 'fill-rose-500 text-rose-500' : 'text-neutral-400'}`} />
+            {wishlistIds.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-mono text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                {wishlistIds.length}
+              </span>
+            )}
           </button>
 
           {/* Persistent luxury shopping bag button */}
@@ -1121,22 +1293,58 @@ export default function App() {
                 <h3 className="font-serif italic font-bold text-xl tracking-wider">
                   {selectedFragrance.name}
                 </h3>
+                <div className="flex items-center justify-center gap-1.5 mt-1">
+                  <div className="flex items-center">
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const revs = selectedFragrance.reviews || [];
+                      const avg = revs.length > 0 ? revs.reduce((a, b) => a + b.rating, 0) / revs.length : 5;
+                      return (
+                        <Star
+                          key={i}
+                          className={`w-3.5 h-3.5 ${i < Math.round(avg) ? 'fill-amber-400 text-amber-400' : 'text-neutral-600'}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  <span className="font-mono text-xs text-amber-400 font-bold">
+                    {selectedFragrance.reviews && selectedFragrance.reviews.length > 0
+                      ? (selectedFragrance.reviews.reduce((a, b) => a + b.rating, 0) / selectedFragrance.reviews.length).toFixed(1)
+                      : '5.0'}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 font-normal">
+                    ({selectedFragrance.reviews ? selectedFragrance.reviews.length : 0} {selectedFragrance.reviews?.length === 1 ? 'review' : 'reviews'})
+                  </span>
+                </div>
               </div>
 
-              {/* Scent notes block */}
+              {/* Scent notes block with active interactive pills */}
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-1.5 justify-center">
-                  {selectedFragrance.notes.map((note) => (
-                    <span 
-                      key={note} 
-                      className={`text-[9px] tracking-wider px-2 py-1 rounded-full font-medium ${
-                        theme === 'dark' ? 'bg-neutral-900 text-neutral-300 border border-neutral-800' : 'bg-neutral-100 text-neutral-700 border border-neutral-200'
-                      }`}
-                    >
-                      {note}
-                    </span>
-                  ))}
+                  {selectedFragrance.notes.map((note) => {
+                    const isActive = activeNoteHighlight === note;
+                    return (
+                      <button 
+                        key={note} 
+                        onClick={() => setActiveNoteHighlight(isActive ? null : note)}
+                        className={`text-[9px] tracking-wider px-2.5 py-1 rounded-full font-bold transition-all transform active:scale-95 ${
+                          isActive
+                            ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20 border border-amber-400'
+                            : theme === 'dark' 
+                              ? 'bg-neutral-900 text-neutral-300 border border-neutral-800 hover:border-amber-500/50 hover:text-amber-400' 
+                              : 'bg-neutral-100 text-neutral-700 border border-neutral-200 hover:border-amber-500 hover:text-amber-600'
+                        }`}
+                        title={`Explore ${note} note profile`}
+                      >
+                        {note} {isActive ? '✨' : ''}
+                      </button>
+                    );
+                  })}
                 </div>
+                {activeNoteHighlight && (
+                  <p className="text-[10px] text-amber-400 font-mono text-center animate-fade-in bg-amber-500/10 py-1 px-2 rounded-lg border border-amber-500/20">
+                    Active Note Accord: <strong>{activeNoteHighlight}</strong> — Infused in organic cold-pressed oil base.
+                  </p>
+                )}
               </div>
 
               {/* Scent description & emotional Vibe */}
@@ -1157,6 +1365,24 @@ export default function App() {
                 <div className="flex items-center">
                   {getIntensityDots(selectedFragrance.intensity)}
                 </div>
+              </div>
+
+              {/* Add to Bag and Buy Now Buttons for active showcased fragrance */}
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  onClick={() => handleAddToBag(selectedFragrance)}
+                  className="py-2.5 px-3 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  Add to Bag
+                </button>
+                <button
+                  onClick={() => handleDirectBuyNow(selectedFragrance)}
+                  className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <Zap className="w-3.5 h-3.5 fill-black" />
+                  Buy Now
+                </button>
               </div>
             </div>
 
@@ -1266,14 +1492,29 @@ export default function App() {
 
       </main>
 
-      {/* Interactive Boutique Product Catalog */}
-      <ShopCatalog 
-        fragrances={activeFragrances}
-        onAddToBag={handleAddToBag}
-        onSelect={handleSelectFragrance}
-        selectedFragrance={selectedFragrance}
-        theme={theme}
+      {/* Bespoke "Create Your Own Perfume" Atelier Studio */}
+      <CustomPerfumeStudio 
+        onAddToBag={handleAddToBag} 
+        onBuyNow={handleDirectBuyNow} 
+        theme={theme} 
+        wishlistIds={wishlistIds}
+        onToggleWishlist={handleToggleWishlist}
       />
+
+      {/* Interactive Boutique Product Catalog */}
+      <div id="perfume-catalog">
+        <ShopCatalog 
+          fragrances={activeFragrances}
+          onAddToBag={handleAddToBag}
+          onBuyNow={handleDirectBuyNow}
+          onSelect={handleSelectFragrance}
+          selectedFragrance={selectedFragrance}
+          theme={theme}
+          wishlistIds={wishlistIds}
+          onToggleWishlist={handleToggleWishlist}
+          onAddReview={handleAddReview}
+        />
+      </div>
 
       {/* Slide-out Shopping Bag Drawer */}
       <CartDrawer 
@@ -1289,12 +1530,41 @@ export default function App() {
         theme={theme}
       />
 
+      {/* Saved Fragrances Wishlist Modal */}
+      <WishlistModal 
+        isOpen={isWishlistOpen}
+        onClose={() => setIsWishlistOpen(false)}
+        wishlistIds={wishlistIds}
+        allFragrances={activeFragrances}
+        onToggleWishlist={handleToggleWishlist}
+        onAddToBag={handleAddToBag}
+        theme={theme}
+      />
+
       {/* Transaction & Secure Payment Modal */}
       <CheckoutModal 
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
         cartItems={cartItems}
         onOrderPlaced={handleOrderPlaced}
+        theme={theme}
+        currentCustomer={currentCustomer}
+      />
+
+      {/* Customer Lounge Sign In & Auth Modal */}
+      <CustomerAuthModal
+        isOpen={isCustomerOpen}
+        onClose={() => setIsCustomerOpen(false)}
+        onLoginSuccess={(customer) => {
+          setCurrentCustomer(customer);
+          localStorage.setItem('arvaiya-customer', JSON.stringify(customer));
+        }}
+        onLogout={() => {
+          setCurrentCustomer(null);
+          localStorage.removeItem('arvaiya-customer');
+        }}
+        currentCustomer={currentCustomer}
+        orders={orders}
         theme={theme}
       />
 

@@ -1,31 +1,76 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, SlidersHorizontal, ShoppingBag, Check, Eye, X } from 'lucide-react';
+import { Search, SlidersHorizontal, ShoppingBag, Check, Eye, X, Heart, Star, MessageSquare } from 'lucide-react';
 import { Fragrance } from '../types';
 import DigitalBottle from './DigitalBottle';
 
 interface ShopCatalogProps {
   fragrances: Fragrance[];
   onAddToBag: (fragrance: Fragrance) => void;
+  onBuyNow?: (fragrance: Fragrance) => void;
   onSelect: (fragrance: Fragrance) => void;
   selectedFragrance: Fragrance;
   theme: 'light' | 'dark';
+  wishlistIds?: string[];
+  onToggleWishlist?: (id: string) => void;
+  onAddReview?: (fragranceId: string, author: string, rating: number, comment: string) => void;
 }
 
 export default function ShopCatalog({
   fragrances,
   onAddToBag,
+  onBuyNow,
   onSelect,
   selectedFragrance,
   theme,
+  wishlistIds = [],
+  onToggleWishlist,
+  onAddReview,
 }: ShopCatalogProps) {
   const [search, setSearch] = useState('');
   const [selectedFamily, setSelectedFamily] = useState<string>('All');
   const [selectedIntensity, setSelectedIntensity] = useState<number | 'All'>('All');
+
+  // Review Form State inside detail modal
+  const [newReviewAuthor, setNewReviewAuthor] = useState('');
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewComment, setNewReviewComment] = useState('');
+  const [hoverRating, setHoverRating] = useState(0);
+  const [reviewSuccess, setReviewSuccess] = useState(false);
   const [addedIds, setAddedIds] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<'photo' | 'digital'>('photo');
   const [selectedDetailFragrance, setSelectedDetailFragrance] = useState<Fragrance | null>(null);
   const [modalViewMode, setModalViewMode] = useState<'photo' | 'digital'>('photo');
+
+  const handleReviewSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDetailFragrance || !newReviewComment.trim()) return;
+
+    const authorName = newReviewAuthor.trim() || 'Fragrance Enthusiast';
+    const newRev = {
+      id: `rev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      author: authorName,
+      rating: newReviewRating,
+      comment: newReviewComment.trim(),
+      date: new Date().toISOString().split('T')[0],
+    };
+
+    if (onAddReview) {
+      onAddReview(selectedDetailFragrance.id, authorName, newReviewRating, newReviewComment.trim());
+    }
+
+    // Update local modal state so review updates live
+    setSelectedDetailFragrance({
+      ...selectedDetailFragrance,
+      reviews: [newRev, ...(selectedDetailFragrance.reviews || [])],
+    });
+
+    setNewReviewComment('');
+    setNewReviewAuthor('');
+    setNewReviewRating(5);
+    setReviewSuccess(true);
+    setTimeout(() => setReviewSuccess(false), 3500);
+  };
 
   // Get unique fragrance families from active list
   const families = ['All', ...Array.from(new Set(fragrances.map((f) => f.family)))];
@@ -186,6 +231,7 @@ export default function ShopCatalog({
             {filteredFragrances.map((f) => {
               const isSelected = selectedFragrance.id === f.id;
               const isAdded = addedIds[f.id];
+              const isWishlisted = wishlistIds.includes(f.id);
               return (
                 <motion.div
                   key={f.id}
@@ -201,12 +247,31 @@ export default function ShopCatalog({
                         : 'bg-white border-[#D8CDBA]/60 hover:border-[#C9A35A] hover:shadow-xl'
                   }`}
                 >
-                  {/* Subtle Family Ribbon */}
-                  <span className={`absolute top-4 left-4 text-[8px] tracking-[0.2em] font-extrabold uppercase px-2 py-0.5 rounded ${
-                    theme === 'dark' ? 'bg-[#1F2F5C] text-[#C9A35A]' : 'bg-[#EFE6D3] text-[#222222]'
-                  }`}>
-                    {f.family}
-                  </span>
+                  {/* Subtle Family Ribbon & Wishlist Heart */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-[8px] tracking-[0.2em] font-extrabold uppercase px-2 py-0.5 rounded ${
+                      theme === 'dark' ? 'bg-[#1F2F5C] text-[#C9A35A]' : 'bg-[#EFE6D3] text-[#222222]'
+                    }`}>
+                      {f.family}
+                    </span>
+
+                    {onToggleWishlist && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleWishlist(f.id);
+                        }}
+                        title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
+                        className="p-1.5 rounded-full hover:bg-rose-500/10 transition-all active:scale-90"
+                      >
+                        <Heart className={`w-4 h-4 transition-colors ${
+                          isWishlisted 
+                            ? 'fill-rose-500 text-rose-500' 
+                            : 'text-neutral-400 hover:text-rose-500'
+                        }`} />
+                      </button>
+                    )}
+                  </div>
 
                   {/* Bottle Showcase Stage */}
                   <div 
@@ -247,6 +312,19 @@ export default function ShopCatalog({
                           ₹{f.price.toLocaleString('en-IN')}
                         </span>
                       </div>
+
+                      {/* Rating summary badge on card */}
+                      <div className="flex items-center gap-1.5 mb-2 text-[10px] text-amber-400 font-bold">
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <span className="font-mono text-xs">
+                          {f.reviews && f.reviews.length > 0
+                            ? (f.reviews.reduce((acc, r) => acc + r.rating, 0) / f.reviews.length).toFixed(1)
+                            : '5.0'}
+                        </span>
+                        <span className="text-neutral-400 font-normal">
+                          ({f.reviews ? f.reviews.length : 0} {f.reviews?.length === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </div>
                       
                       <p className="text-[11px] leading-relaxed opacity-75 line-clamp-3 h-12 mb-3">
                         {f.description}
@@ -273,7 +351,7 @@ export default function ShopCatalog({
                       <button
                         onClick={() => handleAdd(f)}
                         disabled={isAdded}
-                        className={`flex-1 py-2 px-3 rounded-xl text-[10px] tracking-widest font-extrabold uppercase transition-all flex items-center justify-center gap-1.5 ${
+                        className={`flex-1 py-2 px-2.5 rounded-xl text-[10px] tracking-widest font-extrabold uppercase transition-all flex items-center justify-center gap-1 ${
                           isAdded
                             ? 'bg-emerald-600 text-white'
                             : 'bg-[#C9A35A] hover:bg-[#1F2F5C] hover:text-white text-white shadow-md shadow-amber-500/15 active:scale-95'
@@ -291,6 +369,22 @@ export default function ShopCatalog({
                           </>
                         )}
                       </button>
+
+                      {onToggleWishlist && (
+                        <button
+                          onClick={() => onToggleWishlist(f.id)}
+                          className={`p-2 rounded-xl border transition-all flex items-center justify-center active:scale-90 shrink-0 ${
+                            isWishlisted
+                              ? 'border-rose-500 bg-rose-500/20 text-rose-500'
+                              : theme === 'dark'
+                                ? 'border-[#D8CDBA]/10 text-neutral-400 hover:text-rose-500 hover:border-rose-500/50'
+                                : 'border-[#D8CDBA]/60 text-neutral-500 hover:text-rose-500 hover:border-rose-500/50'
+                          }`}
+                          title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-rose-500 text-rose-500' : ''}`} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -452,18 +546,147 @@ export default function ShopCatalog({
                           </span>
                         </div>
                       </div>
+
+                      {/* Customer Ratings & Reviews Section */}
+                      <div className="mt-4 pt-3 border-t border-neutral-200/60 dark:border-neutral-800/60 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold tracking-widest text-neutral-400 uppercase flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3 text-amber-500" />
+                            Customer Reviews ({selectedDetailFragrance.reviews?.length || 0})
+                          </span>
+                          <div className="flex items-center gap-1 text-xs text-amber-400 font-bold">
+                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                            <span className="font-mono">
+                              {selectedDetailFragrance.reviews && selectedDetailFragrance.reviews.length > 0
+                                ? (selectedDetailFragrance.reviews.reduce((a, b) => a + b.rating, 0) / selectedDetailFragrance.reviews.length).toFixed(1)
+                                : '5.0'}
+                            </span>
+                            <span className="text-[10px] text-neutral-400 font-normal">/ 5.0</span>
+                          </div>
+                        </div>
+
+                        {/* Reviews list */}
+                        <div className="max-h-36 overflow-y-auto space-y-2 pr-1 text-xs">
+                          {(!selectedDetailFragrance.reviews || selectedDetailFragrance.reviews.length === 0) ? (
+                            <p className="text-[11px] text-neutral-400 italic py-1">
+                              No reviews submitted yet. Be the first to rate this fragrance!
+                            </p>
+                          ) : (
+                            selectedDetailFragrance.reviews.map((rev) => (
+                              <div
+                                key={rev.id}
+                                className={`p-2.5 rounded-xl border ${
+                                  theme === 'dark'
+                                    ? 'bg-neutral-900/90 border-neutral-800'
+                                    : 'bg-neutral-50 border-neutral-200'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-bold text-amber-400 text-xs">{rev.author}</span>
+                                  <div className="flex items-center gap-0.5">
+                                    {Array.from({ length: 5 }).map((_, idx) => (
+                                      <Star
+                                        key={idx}
+                                        className={`w-3 h-3 ${
+                                          idx < rev.rating
+                                            ? 'fill-amber-400 text-amber-400'
+                                            : 'text-neutral-600'
+                                        }`}
+                                      />
+                                    ))}
+                                    <span className="text-[9px] text-neutral-400 ml-1 font-mono">{rev.date}</span>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] opacity-85 leading-snug">{rev.comment}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Interactive Review Form */}
+                        <form onSubmit={handleReviewSubmit} className="pt-2 border-t border-neutral-200/50 dark:border-neutral-800/50 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">
+                              Add Your Feedback
+                            </span>
+                            {/* Star Picker */}
+                            <div className="flex items-center gap-0.5">
+                              {Array.from({ length: 5 }).map((_, idx) => {
+                                const starVal = idx + 1;
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onMouseEnter={() => setHoverRating(starVal)}
+                                    onMouseLeave={() => setHoverRating(0)}
+                                    onClick={() => setNewReviewRating(starVal)}
+                                    className="p-0.5 focus:outline-none transition-transform active:scale-125"
+                                  >
+                                    <Star
+                                      className={`w-4 h-4 ${
+                                        starVal <= (hoverRating || newReviewRating)
+                                          ? 'fill-amber-400 text-amber-400'
+                                          : 'text-neutral-500'
+                                      }`}
+                                    />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              placeholder="Your name (optional)"
+                              value={newReviewAuthor}
+                              onChange={(e) => setNewReviewAuthor(e.target.value)}
+                              className={`w-full px-2.5 py-1.5 rounded-lg text-xs border outline-none ${
+                                theme === 'dark'
+                                  ? 'bg-neutral-900 border-neutral-800 text-white focus:border-amber-500'
+                                  : 'bg-neutral-100 border-neutral-300 text-neutral-900 focus:border-amber-500'
+                              }`}
+                            />
+                            <button
+                              type="submit"
+                              className="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-[11px] uppercase tracking-wider transition-all shadow-sm active:scale-95"
+                            >
+                              Post Review
+                            </button>
+                          </div>
+
+                          <textarea
+                            rows={2}
+                            placeholder="Share your thoughts about scent, longevity, or sillage..."
+                            value={newReviewComment}
+                            onChange={(e) => setNewReviewComment(e.target.value)}
+                            required
+                            className={`w-full px-2.5 py-1.5 rounded-lg text-xs border outline-none resize-none ${
+                              theme === 'dark'
+                                ? 'bg-neutral-900 border-neutral-800 text-white focus:border-amber-500'
+                                : 'bg-neutral-100 border-neutral-300 text-neutral-900 focus:border-amber-500'
+                            }`}
+                          />
+
+                          {reviewSuccess && (
+                            <p className="text-[10px] text-emerald-400 font-bold text-center animate-pulse">
+                              ✨ Review submitted successfully & added to perfume history!
+                            </p>
+                          )}
+                        </form>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Add to Bag action */}
-                  <div className="mt-6 pt-4 border-t border-neutral-100 dark:border-neutral-900 flex gap-3">
+                  {/* Add to Bag, Buy Now and Wishlist actions */}
+                  <div className="mt-6 pt-4 border-t border-neutral-100 dark:border-neutral-900 flex items-center gap-2">
                     <button
                       onClick={() => handleAdd(selectedDetailFragrance)}
                       disabled={addedIds[selectedDetailFragrance.id]}
-                      className={`flex-1 py-3 px-4 rounded-xl text-xs tracking-widest font-extrabold uppercase transition-all flex items-center justify-center gap-2 ${
+                      className={`flex-1 py-3 px-3 rounded-xl text-xs tracking-widest font-extrabold uppercase transition-all flex items-center justify-center gap-2 ${
                         addedIds[selectedDetailFragrance.id]
                           ? 'bg-emerald-600 text-white shadow-md'
-                          : 'bg-[#C9A35A] hover:bg-[#1F2F5C] hover:text-white text-white shadow-lg shadow-amber-500/15 active:scale-95'
+                          : 'bg-[#1F2F5C] hover:bg-[#142042] text-white shadow-lg border border-[#C9A35A]/30 active:scale-95'
                       }`}
                     >
                       {addedIds[selectedDetailFragrance.id] ? (
@@ -473,11 +696,39 @@ export default function ShopCatalog({
                         </>
                       ) : (
                         <>
-                          <ShoppingBag className="w-4 h-4" />
+                          <ShoppingBag className="w-4 h-4 text-[#C9A35A]" />
                           Add To Bag
                         </>
                       )}
                     </button>
+
+                    {onBuyNow && (
+                      <button
+                        onClick={() => {
+                          setSelectedDetailFragrance(null);
+                          onBuyNow(selectedDetailFragrance);
+                        }}
+                        className="flex-1 py-3 px-3 rounded-xl text-xs tracking-widest font-extrabold uppercase transition-all bg-[#C9A35A] hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        Buy Now
+                      </button>
+                    )}
+
+                    {onToggleWishlist && (
+                      <button
+                        onClick={() => onToggleWishlist(selectedDetailFragrance.id)}
+                        className={`p-3 rounded-xl border transition-all flex items-center justify-center active:scale-95 shrink-0 ${
+                          wishlistIds.includes(selectedDetailFragrance.id)
+                            ? 'border-rose-500 bg-rose-500/20 text-rose-500'
+                            : theme === 'dark'
+                              ? 'border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-rose-500 hover:border-rose-500/50'
+                              : 'border-neutral-300 bg-neutral-100 text-neutral-400 hover:text-rose-500 hover:border-rose-500/50'
+                        }`}
+                        title={wishlistIds.includes(selectedDetailFragrance.id) ? "Remove from Wishlist" : "Save to Wishlist"}
+                      >
+                        <Heart className={`w-4 h-4 ${wishlistIds.includes(selectedDetailFragrance.id) ? 'fill-rose-500 text-rose-500' : ''}`} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -35,6 +35,14 @@ export interface UserProfile {
   gender?: 'Women' | 'Men' | 'Unisex' | '';
 }
 
+export interface Review {
+  id: string;
+  author: string;
+  rating: number; // 1 to 5
+  comment: string;
+  date: string;
+}
+
 export interface Fragrance {
   id: string;
   name: string;
@@ -48,8 +56,10 @@ export interface Fragrance {
   description: string;
   vibe: string;
   price: number; // e.g., 4999 (INR) or 95 (USD)
+  originalPrice?: number; // Previous/original price before reduction
   volume: string; // e.g., '100 ml'
   imageUrl?: string; // Optional realistic perfume image URL
+  reviews?: Review[];
 }
 
 export interface CartItem {
@@ -61,6 +71,7 @@ export interface Order {
   id: string;
   customerName: string;
   customerEmail: string;
+  phone?: string;
   address: string;
   city: string;
   items: {
@@ -74,7 +85,11 @@ export interface Order {
   date: string;
   status: 'Pending' | 'Shipped' | 'Delivered';
   upiId?: string;
-  paymentStatus?: 'Pending' | 'Paid' | 'Failed';
+  paymentStatus?: 'Pending' | 'Paid' | 'Failed' | 'Processing' | 'Cancelled';
+  razorpayPaymentId?: string;
+  razorpayOrderId?: string;
+  razorpaySignature?: string;
+  invoiceNumber?: string;
 }
 
 export interface ChatMessage {
